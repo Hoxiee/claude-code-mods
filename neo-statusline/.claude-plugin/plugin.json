@@ -13,6 +13,12 @@
         "5m",
         "1h"
       ]
+    },
+    "showLimits": {
+      "type": "boolean",
+      "title": "Show subscription limits",
+      "description": "Show the 5h and 7d subscription rate-limit windows. Turn off if another tool already shows them.",
+      "default": true
     }
   }
 }

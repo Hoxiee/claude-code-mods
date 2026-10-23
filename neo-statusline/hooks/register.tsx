@@ -1,4 +1,4 @@
-import type { Hook, Register } from 'claude-code'
+import type { Hook, Register, SessionUsage } from 'claude-code'
 
 type Api = Parameters<Hook<'session.start'>>[0]
 
@@ -230,6 +230,7 @@ async function refresh($: Api) {
 
 export const register: Register = (on, options) => {
   const forced = options.cacheTtl === '5m' || options.cacheTtl === '1h' ? options.cacheTtl : null
+  const showLimits = options.showLimits !== false
 
   on('session.start', async ($, e, next) => {
     await load($)
@@ -277,7 +278,12 @@ export const register: Register = (on, options) => {
     const now = await $.clock.now()
     // A /clear or a resume moves the process to another session without a `session.start`.
     await bind($).catch(() => {})
-    const usage = await $.session.usage()
+    // A failing read must not take the whole bar down with it.
+    const usage = await $.session.usage().catch((): SessionUsage => ({
+      startedAt: now,
+      context: { window: 0 },
+      rateLimits: [],
+    }))
     const cols = e.viewport?.columns ?? 120
     // 0: bare essentials, 1: + details, 2: + everything.
     const level = cols >= 150 ? 2 : cols >= 115 ? 1 : 0
@@ -292,7 +298,7 @@ export const register: Register = (on, options) => {
           {e.props.isWorking ? '◉' : '●'}{' '}
         </Text>
         <Text color={C.mauve} bold>
-          ◆ {prettyModel(S.model || (await $.session.model()))}
+          ◆ {prettyModel(S.model || (await $.session.model().catch(() => '')) || 'claude')}
         </Text>
         {effort ? (
           <Text color={C.pink} bold>
@@ -402,6 +408,8 @@ export const register: Register = (on, options) => {
 
     // Rate limits.
     for (const r of usage.rateLimits) {
+      if (!showLimits && (r.kind === 'five_hour' || r.kind === 'seven_day')) continue
+
       const label = r.kind === 'five_hour' ? '5h' : r.kind === 'seven_day' ? '7d' : r.kind === 'spend_limit' ? 'spend' : r.kind
       const reset = r.resetsAt ? Date.parse(r.resetsAt) - now : NaN
 

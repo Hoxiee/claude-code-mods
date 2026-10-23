@@ -169,3 +169,31 @@ test('the shift+tab reminder is cut from the hint', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: /shift\+tab|agents/ })).toBeUndefined()
   await ui.unmount()
 })
+
+test('the 5h and 7d limits are hidden when showLimits is off', { options: { showLimits: false } }, async ($, on) => {
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('store.get', () => ({ value: undefined }))
+  on('clock.every', () => ({ value: {} }))
+  on('ui.invalidate', () => ({ value: undefined }))
+  on('session.cwd', () => ({ value: '/p' }))
+  on('session.model', () => ({ value: 'm' }))
+  on('process.run', () => ({ value: { exitCode: 128, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+  on('session.usage', () => ({
+    value: {
+      startedAt: 0,
+      context: { window: 1000 },
+      rateLimits: [
+        { kind: 'five_hour', percentUsed: 35 },
+        { kind: 'seven_day', percentUsed: 10 },
+      ],
+    },
+  }))
+  on('clock.now', () => ({ value: 1 }))
+
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+  const ui = await $.ui.mount({ ...BAND, props: { ...BAND.props, hint: '' } })
+
+  expect(await ui.find({ type: 'Text', text: /5h/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /7d/ })).toBeUndefined()
+  await ui.unmount()
+})

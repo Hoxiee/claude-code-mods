@@ -41,6 +41,10 @@ Add the mod folder to `~/.claude/settings.json`:
 default) infers it from cache hits after a pause longer than five minutes and shows
 `5m?` until it has proof. Set `5m` or `1h` to fix it.
 
+`showLimits` (checkbox, on by default): show the `5h` / `7d` subscription limit windows.
+Turn it off if another tool, such as a bar, already shows them. A gateway `spend` limit is
+not affected.
+
 ## Cache numbers
 
 The ratio is `read / (read + written + uncached)` of the **last request**, not of the whole
