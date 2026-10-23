@@ -14,7 +14,7 @@ A one-line status bar for Claude Code, drawn under the prompt:
 | `◆ Sonnet 5.5:xhi` | model and thinking effort (`lo`, `md`, `hi`, `xhi`, `max`) |
 | `◇ main ~2 +1 ↑1` | branch; `~` modified, `+` added, `-` deleted, `→` renamed, `?` untracked, `!` conflicts, `↑`/`↓` ahead/behind, `✓` clean |
 | `ctx` | context window fill, with a bar and token counts |
-| `cache` | prompt cache hit ratio, its lifetime (`5m` / `1h`), time left and the moment it goes cold |
+| `cache` | prompt cache of this session: the last request's hit ratio, `Σ` the whole session's, `+Nk` written by the last request, `miss` when it lost the cached prefix, the lifetime (`5m` / `1h`), time left and the moment it goes cold |
 | `5h`, `7d` | rate-limit windows and time until reset |
 | `$` | session cost |
 | `up` | session length |
@@ -40,6 +40,28 @@ Add the mod folder to `~/.claude/settings.json`:
 `cacheTtl`: lifetime of the prompt cache. The engine does not report it, so `auto` (the
 default) infers it from cache hits after a pause longer than five minutes and shows
 `5m?` until it has proof. Set `5m` or `1h` to fix it.
+
+## Cache numbers
+
+The ratio is `read / (read + written + uncached)` of the **last request**, not of the whole
+turn: a turn sums all its requests, which hides what the cache is doing right now. `Σ` sums
+every request of the session. Each session keeps its own numbers, so a new session or a
+`/clear` starts from `cache —` instead of showing another session's countdown. Subagent
+requests are not counted: they have a cache of their own.
+
+A lower ratio right after a long tool result is normal (`+Nk` is the new text being
+cached); `miss` is the real failure, and means the previous prefix was not read back.
+
+For the full picture of a session, `tools/ccache` reads its transcript:
+
+```sh
+ln -s "$PWD/tools/ccache" ~/.local/bin/ccache
+ccache            # the newest session of the current directory
+ccache 82045d4f   # a session id prefix
+```
+
+It lists every API call (new / written / read tokens), marks `CACHE BREAK` and `COLD`
+requests, and prints the session ratio and when the cache expires.
 
 ## Check
 

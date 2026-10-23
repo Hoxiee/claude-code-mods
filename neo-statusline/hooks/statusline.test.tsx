@@ -48,34 +48,108 @@ test('the band shows model, context, limits and cost', async ($, on) => {
   await ui.unmount()
 })
 
-test('after a turn the band shows the cache ratio, its type and the countdown', async ($, on) => {
+type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
+
+const usage = (fresh: number, read: number, write: number): Usage => ({
+  input_tokens: fresh,
+  output_tokens: 5,
+  cache_read_input_tokens: read,
+  cache_creation_input_tokens: write,
+})
+
+// A session the band can run in: one shared store (as the real one is), an id and a clock.
+function world(on: Parameters<Parameters<typeof test>[1]>[1], opts: { store?: Map<string, unknown>; sid?: string; now?: number } = {}) {
+  const store = opts.store ?? new Map<string, unknown>()
+  const state = { sid: opts.sid ?? 's1', now: opts.now ?? 60_000, next: null as Usage | null }
+
   on('session.start', (_, e) => ({ cwd: e.cwd }))
-  on('store.get', () => ({ value: undefined }))
-  on('store.set', () => ({ value: undefined }))
+  on('store.get', (_, e) => ({ value: store.get(e.key) }))
+  on('store.set', (_, e) => (store.set(e.key, JSON.parse(JSON.stringify(e.value))), { value: undefined }))
   on('clock.every', () => ({ value: {} }))
   on('ui.invalidate', () => ({ value: undefined }))
+  on('session.id', () => ({ value: state.sid }))
   on('session.cwd', () => ({ value: '/p' }))
   on('session.model', () => ({ value: 'claude-sonnet-5-5' }))
   on('process.run', () => ({ value: { exitCode: 128, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
   on('session.usage', () => ({ value: { startedAt: 0, context: { window: 1_000_000 }, rateLimits: [] } }))
-  on('clock.now', () => ({ value: 60_000 }))
-  on('turn.complete', (_, e) => ({ text: e.answer }))
-
-  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
-  await $.turn.complete({
-    answer: 'ok',
-    durationMs: 1,
-    isAborted: false,
-    turnId: 't',
-    reason: 'answer',
-    usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 90, cache_creation_input_tokens: 0, model: 'm' },
+  on('clock.now', () => ({ value: state.now }))
+  on('turn.step', async function* (_, e) {
+    const usage = state.next && { ...state.next, model: e.model }
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const, usage }
   })
-  const ui = await $.ui.mount({ ...BAND, props: { ...BAND.props, hint: '' } })
+
+  return state
+}
+
+// Runs one request of the main thread (or a subagent's) that the API answered with `u`.
+async function step($: Parameters<Parameters<typeof test>[1]>[0], w: { next: Usage | null }, u: Usage, agentId?: string) {
+  w.next = u
+  const stream = $.turn.step({ turnId: 't', index: 0, model: 'm', messageCount: 2, agentId })
+  for (;;) if ((await stream.next()).done) return
+}
+
+const mount = ($: Parameters<Parameters<typeof test>[1]>[0]) => $.ui.mount({ ...BAND, props: { ...BAND.props, hint: '' } })
+
+test('the band shows the last request\'s cache ratio, the session total and the countdown', async ($, on) => {
+  const w = world(on)
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+  await step($, w, usage(10, 90, 0))
+  const ui = await mount($)
 
   expect(await ui.find({ type: 'Text', text: /90%/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /5m\?/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /5m/ })).toBeDefined()
   await ui.unmount()
+})
+
+test('the ratio is the last request\'s, not the turn\'s sum, and Σ is the whole session', async ($, on) => {
+  const w = world(on)
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+  await step($, w, usage(100, 0, 9_900)) // cold start: nothing read
+  await step($, w, usage(100, 9_900, 0)) // warm
+  const ui = await mount($)
+
+  expect(await ui.find({ type: 'Text', text: /99%/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Σ50%/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a subagent\'s requests do not touch the main cache', async ($, on) => {
+  const w = world(on)
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+  await step($, w, usage(10, 90, 0))
+  await step($, w, usage(10_000, 0, 0), 'agent-1')
+  const ui = await mount($)
+
+  expect(await ui.find({ type: 'Text', text: /90%/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a request that loses the cached prefix is marked as a miss', async ($, on) => {
+  const w = world(on)
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+  await step($, w, usage(10, 50_000, 0))
+  await step($, w, usage(10, 0, 50_000))
+  const ui = await mount($)
+
+  expect(await ui.find({ type: 'Text', text: /miss/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('another session, or the same one after /clear, does not inherit the cache', async ($, on) => {
+  const w = world(on)
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+  await step($, w, usage(10, 90, 0))
+
+  w.sid = 's2'
+  const ui = await mount($)
+  expect(await ui.find({ type: 'Text', text: /cache —/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /90%/ })).toBeUndefined()
+  await ui.unmount()
+
+  w.sid = 's1'
+  const back = await mount($)
+  expect(await back.find({ type: 'Text', text: /90%/ })).toBeDefined()
+  await back.unmount()
 })
 
 test('the shift+tab reminder is cut from the hint', async ($, on) => {
