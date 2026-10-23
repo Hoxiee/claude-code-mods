@@ -1,0 +1,18 @@
+{
+  "name": "neo-statusline",
+  "version": "0.1.0",
+  "description": "One-line status bar under the prompt: model, effort, git, context, prompt cache, rate limits, cost.",
+  "userConfig": {
+    "cacheTtl": {
+      "type": "string",
+      "title": "Prompt cache TTL",
+      "description": "Lifetime of the prompt cache: auto infers it from cache hits after a pause, or force 5m / 1h.",
+      "default": "auto",
+      "options": [
+        "auto",
+        "5m",
+        "1h"
+      ]
+    }
+  }
+}
