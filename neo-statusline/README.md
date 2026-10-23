@@ -5,8 +5,12 @@ English | [Русский](README.ru.md)
 A one-line status bar for Claude Code, drawn under the prompt:
 
 ```
-● ◆ Sonnet 5.5:xhi │ ◇ main ~2 +1 ↑1 │ ctx ████░░░░ 13% 127k/1M │ cache 99% 1h 42m → 20:45 │ 5h 21% (4h17m) │ 7d 7% (6d17h) │ $1.20 │ up 19m
+● ◆ Sonnet 5.5:xhi │ ◇ main ~2 +1 ↑1 │ ctx ████░░░░ 13% 127k/1M │ cache 99% Σ98% 1h 42m → 20:45 │ 5h 21% (4h17m) │ 7d 7% (6d17h) │ $1.20 │ up 19m
 ```
+
+![neo-statusline in Claude Code](docs/statusline.png)
+
+*A capture from a live session, right after its second request: the prefix is read back in full (`100%`), the session total is `Σ86%`, the cache lives for one hour.*
 
 | Segment | Shows |
 | --- | --- |
