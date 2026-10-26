@@ -8,8 +8,21 @@
 | Мод | Что делает |
 | --- | --- |
 | [`neo-statusline`](./neo-statusline) | Статусбар в одну строку под промптом: модель, режим мышления, git, контекст, prompt cache, лимиты, стоимость |
+| [`neo-screenshots`](./neo-screenshots) | История изображений из Read и MCP с поиском и открытием сохранённых снимков в системном просмотрщике |
 
-## Как подключить мод
+## Установка
+
+В строке ввода Claude Code выберите нужный мод:
+
+```text
+/plugin install neo-statusline --marketplace Hoxiee/claude-code-mods
+/plugin install neo-screenshots --marketplace Hoxiee/claude-code-mods
+```
+
+Подтвердите добавление marketplace клавишей `y`, затем выберите область установки
+и настройки. Требования и управление описаны в README каждого мода.
+
+## Подключение локальной копии
 
 Укажите папку мода в `CLAUDE_CODE_PLUGIN_DIRS` в `~/.claude/settings.json`. За папкой
 идёт слежение, поэтому правки перезагружают мод прямо во время сессии.

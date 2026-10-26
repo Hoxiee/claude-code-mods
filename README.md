@@ -8,8 +8,21 @@ self-contained plugin (`.claude-plugin/plugin.json` plus a hooks module).
 | Mod | What it does |
 | --- | --- |
 | [`neo-statusline`](./neo-statusline) | One-line status bar under the prompt: model, thinking effort, git, context, prompt cache, rate limits, cost |
+| [`neo-screenshots`](./neo-screenshots) | Searchable history of images from Read and MCP tools; open saved snapshots in the system viewer |
 
-## Using a mod
+## Install
+
+At the Claude Code prompt, choose the mod you want:
+
+```text
+/plugin install neo-statusline --marketplace Hoxiee/claude-code-mods
+/plugin install neo-screenshots --marketplace Hoxiee/claude-code-mods
+```
+
+Confirm adding the marketplace with `y`, then choose the installation scope and options.
+See each mod's README for its requirements and controls.
+
+## Using a local copy
 
 Point `CLAUDE_CODE_PLUGIN_DIRS` at the mod folder in `~/.claude/settings.json`. The folder is
 watched, so edits reload the mod while a session is running.

@@ -1,0 +1,15 @@
+{
+  "name": "neo-screenshots",
+  "version": "0.2.0",
+  "description": "Searchable image history from Read and MCP tools, with saved snapshots opened in the system viewer.",
+  "author": { "name": "Hoxiee" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "autoOpen": {
+      "type": "boolean",
+      "title": "Open the panel automatically",
+      "description": "Show the panel after the first image when the terminal is wide enough.",
+      "default": true
+    }
+  }
+}

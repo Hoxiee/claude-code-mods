@@ -6,6 +6,11 @@
       "name": "neo-statusline",
       "source": "./neo-statusline",
       "description": "One-line status bar under the prompt: model, effort, git, context, prompt cache, rate limits, cost."
+    },
+    {
+      "name": "neo-screenshots",
+      "source": "./neo-screenshots",
+      "description": "Searchable image history from Read and MCP tools, with saved snapshots opened in the system viewer."
     }
   ]
 }
