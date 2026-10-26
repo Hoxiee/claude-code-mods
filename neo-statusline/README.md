@@ -22,12 +22,36 @@ A one-line status bar for Claude Code, drawn under the prompt:
 | `ctx` | context window fill, with a bar and token counts |
 | `cache` | prompt cache of this session: the last request's hit ratio, `Σ` the whole session's, `+Nk` written by the last request, `miss` when it lost the cached prefix, the lifetime (`5m` / `1h`), time left and the moment it goes cold |
 | `5h`, `7d` | rate-limit windows and time until reset |
+| `agents 1/3` | subagents running over all started this session |
 | `$` | session cost |
 | `up` | session length |
 
 Bars and percentages turn yellow, orange and red as they fill (50 / 65 / 80%). The line
 drops detail on narrow terminals. The engine's own hint line stays beneath it, minus the
 `(shift+tab to cycle)` and `N agents` reminders.
+
+## Subagents
+
+Open a subagent from the tasks list and the bar switches to it, drawn from that agent's own
+requests (back in the main conversation it returns to the usual one):
+
+```
+◉ ⤷ Explore Scan the repo │ ◆ Haiku 5.5:hi │ ctx 33k │ cache 91% Σ47% +30k 1h 58m → 21:40 │ tok ↑2k in 2k cw 32k cr 30k │ 2 req │ session $1.20
+```
+
+| Segment | Shows |
+| --- | --- |
+| `◉` `●` `✓` `✗` | agent state: running, idle, completed, failed or killed |
+| `⤷ Explore Scan the repo` | its type and task description |
+| `◆ Haiku 5.5:hi` | the agent's own model and effort, which may differ from the main one |
+| `ctx` | tokens in its window now; with a bar and percent when it runs on the main model |
+| `cache` | its own cache, read the same way as the main one (last request, `Σ`, `+Nk`, `miss`, countdown) |
+| `tok` | everything it was billed for: `↑` output, `in` uncached input, `cw` cache written, `cr` cache read |
+| `req` | requests it made |
+| `session` | the session's cost: the engine keeps no per-agent ledger |
+
+An agent that made no request since the mod loaded shows `no requests seen yet`. Each
+agent's numbers are kept with its session, like the main cache's.
 
 ## Install
 
@@ -65,7 +89,7 @@ The ratio is `read / (read + written + uncached)` of the **last request**, not o
 turn: a turn sums all its requests, which hides what the cache is doing right now. `Σ` sums
 every request of the session. Each session keeps its own numbers, so a new session or a
 `/clear` starts from `cache —` instead of showing another session's countdown. Subagent
-requests are not counted: they have a cache of their own.
+requests are not counted in it: they have a cache of their own, shown when you view the agent.
 
 A lower ratio right after a long tool result is normal (`+Nk` is the new text being
 cached); `miss` is the real failure, and means the previous prefix was not read back.

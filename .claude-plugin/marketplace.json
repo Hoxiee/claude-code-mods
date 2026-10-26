@@ -1,6 +1,8 @@
 {
   "name": "claude-code-mods",
-  "owner": { "name": "Hoxiee" },
+  "owner": {
+    "name": "Hoxiee"
+  },
   "metadata": {
     "description": "Claude Code mods for status lines, screenshot history, prompt caching, and budget awareness."
   },
@@ -8,7 +10,7 @@
     {
       "name": "neo-statusline",
       "source": "./neo-statusline",
-      "description": "One-line status bar under the prompt: model, effort, git, context, prompt cache, rate limits, cost."
+      "description": "One-line status bar under the prompt: model, effort, git, context, prompt cache, subagents, rate limits, cost."
     },
     {
       "name": "budget-guard",
