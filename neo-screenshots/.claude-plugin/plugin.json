@@ -3,6 +3,8 @@
   "version": "0.2.0",
   "description": "Searchable image history from Read and MCP tools, with saved snapshots opened in the system viewer.",
   "author": { "name": "Hoxiee" },
+  "license": "MIT",
+  "icon": "./.claude-plugin/icon.png",
   "types": "./types/index.d.ts",
   "userConfig": {
     "autoOpen": {

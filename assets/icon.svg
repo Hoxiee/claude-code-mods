@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title description">
+  <title id="title">neocc-mods</title>
+  <desc id="description">Четыре модуля в одной сетке: терминал, изображения, защита и новые дополнения.</desc>
+  <rect width="1024" height="1024" rx="224" fill="#102131"/>
+  <rect x="12" y="12" width="1000" height="1000" rx="212" fill="none" stroke="#253b4b" stroke-width="24"/>
+  <g fill="#081722" opacity=".35" transform="translate(0 18)">
+    <rect x="196" y="196" width="280" height="280" rx="60"/>
+    <rect x="548" y="196" width="280" height="280" rx="60"/>
+    <rect x="196" y="548" width="280" height="280" rx="60"/>
+    <rect x="548" y="548" width="280" height="280" rx="60"/>
+  </g>
+  <rect x="196" y="196" width="280" height="280" rx="60" fill="#7bd4ba"/>
+  <rect x="548" y="196" width="280" height="280" rx="60" fill="#2b6570"/>
+  <rect x="196" y="548" width="280" height="280" rx="60" fill="#e7f1eb"/>
+  <rect x="548" y="548" width="280" height="280" rx="60" fill="#f2cc86"/>
+  <path d="m267 287 49 49-49 49m87 0h53" fill="none" stroke="#102131" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M643 272h100a16 16 0 0 1 16 16v80" fill="none" stroke="#7bd4ba" stroke-width="20" stroke-linecap="round"/>
+  <rect x="613" y="308" width="116" height="94" rx="16" fill="none" stroke="#e7f1eb" stroke-width="20"/>
+  <path d="m626 388 28-30 23 19 20-21 21 32" fill="none" stroke="#e7f1eb" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M336 606c-24 17-49 27-75 34v57c0 40 28 66 75 91 47-25 75-51 75-91v-57c-26-7-51-17-75-34Z" fill="#2b6570"/>
+  <path d="m307 695 22 21 36-39" fill="none" stroke="#e7f1eb" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M688 631v114m-57-57h114" fill="none" stroke="#102131" stroke-width="30" stroke-linecap="round"/>
+</svg>

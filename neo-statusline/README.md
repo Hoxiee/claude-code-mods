@@ -1,5 +1,7 @@
 # neo-statusline
 
+<img src=".claude-plugin/icon.png" alt="" width="80" height="80" align="right">
+
 English | [Русский](README.ru.md)
 
 A one-line status bar for Claude Code, drawn under the prompt:
@@ -28,6 +30,14 @@ drops detail on narrow terminals. The engine's own hint line stays beneath it, m
 `(shift+tab to cycle)` and `N agents` reminders.
 
 ## Install
+
+At the Claude Code prompt:
+
+```text
+/plugin install neo-statusline --marketplace Hoxiee/claude-code-mods
+```
+
+Confirm adding the marketplace with `y`, then choose the installation scope and options.
 
 The mod draws the `PromptHint` component, so it needs a terminal Claude Code with mods.
 Add the mod folder to `~/.claude/settings.json`:
@@ -77,3 +87,8 @@ requests, and prints the session ratio and when the cache expires.
 claude plugin validate .
 claude plugin test .
 ```
+
+## License
+
+[MIT](LICENSE) © 2026 Hoxiee. The icon uses the same license;
+its editable source is [assets/icon.svg](assets/icon.svg).

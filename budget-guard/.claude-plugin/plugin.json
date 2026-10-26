@@ -1,0 +1,63 @@
+{
+  "name": "budget-guard",
+  "version": "0.1.0",
+  "description": "Stretches a Claude subscription: keeps the main prompt cache warm while idle, warns on 5h/7d limits and an approaching compaction, guards prompts sent into a cold cache.",
+  "author": { "name": "Hoxiee" },
+  "license": "MIT",
+  "icon": "./.claude-plugin/icon.png",
+  "userConfig": {
+    "keepalive": {
+      "type": "boolean",
+      "title": "Keep the prompt cache warm",
+      "description": "While the main thread is idle, re-read its cached prefix through a fork shortly before the 5-minute cache expires.",
+      "default": true
+    },
+    "keepaliveMinutes": {
+      "type": "string",
+      "title": "Keepalive horizon (minutes)",
+      "description": "How long after the last real request to keep pinging. A ping costs ~1/25 of a cache rebuild on Opus.",
+      "default": "30",
+      "options": ["10", "20", "30", "45", "60", "90"]
+    },
+    "keepaliveMinTokens": {
+      "type": "string",
+      "title": "Keepalive minimum context (tokens)",
+      "description": "Below this context size a rebuild is cheap and no ping is sent.",
+      "default": "30000",
+      "options": ["15000", "30000", "60000", "100000"]
+    },
+    "coldCacheGuard": {
+      "type": "string",
+      "title": "Prompt into a cold cache",
+      "description": "confirm: hold the first prompt after the cache expired on a large context and put it back for a second Enter; warn: toast only; off.",
+      "default": "confirm",
+      "options": ["confirm", "warn", "off"]
+    },
+    "coldCacheMinTokens": {
+      "type": "string",
+      "title": "Cold-cache guard minimum context (tokens)",
+      "description": "Context size from which a cold-cache prompt is held or warned about.",
+      "default": "60000",
+      "options": ["30000", "60000", "100000", "150000"]
+    },
+    "limitThresholds": {
+      "type": "string",
+      "title": "Rate-limit warnings (%)",
+      "description": "Comma-separated 5h/7d usage percentages that raise a toast; 90 and above also notify.",
+      "default": "50,75,90,95"
+    },
+    "budgetNudgeAt": {
+      "type": "string",
+      "title": "Tell the model about the budget from (%)",
+      "description": "From this 5h or 7d usage, each prompt carries a hidden one-line budget note for the model (cache-safe). off disables it.",
+      "default": "70",
+      "options": ["off", "50", "60", "70", "80", "90"]
+    },
+    "contextThresholds": {
+      "type": "string",
+      "title": "Context warnings (% of the compaction window)",
+      "description": "Comma-separated fill percentages of the auto-compact window that raise a toast.",
+      "default": "70,85"
+    }
+  }
+}

@@ -1,5 +1,7 @@
 # neo-screenshots
 
+<img src=".claude-plugin/icon.png" alt="" width="80" height="80" align="right">
+
 [English](README.md) | Русский
 
 Боковая панель с поиском по изображениям, прочитанным Claude Code через `Read` и
@@ -130,3 +132,8 @@ python3 -I ./neo-screenshots/scripts/test_image_cache.py
 После загрузки мода клиент создаёт `.claude-plugin/types/`. Тогда доступна и
 проверка типов: `tsc -p ./neo-screenshots`. Сгенерированные типы и байткод Python
 исключены из git.
+
+## Лицензия
+
+[MIT](LICENSE) © 2026 Hoxiee. Иконка распространяется под той же лицензией;
+редактируемый исходник — [assets/icon.svg](assets/icon.svg).

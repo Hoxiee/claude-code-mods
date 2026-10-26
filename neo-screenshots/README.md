@@ -1,5 +1,7 @@
 # neo-screenshots
 
+<img src=".claude-plugin/icon.png" alt="" width="80" height="80" align="right">
+
 English | [Русский](README.ru.md)
 
 A searchable side panel for images read by Claude Code through `Read` and MCP tools,
@@ -125,3 +127,8 @@ python3 -I ./neo-screenshots/scripts/test_image_cache.py
 After the client loads the mod, it generates `.claude-plugin/types/`. Type-checking
 is then available with `tsc -p ./neo-screenshots`. Generated types and Python bytecode
 are excluded from git.
+
+## License
+
+[MIT](LICENSE) © 2026 Hoxiee. The icon is included under the same license;
+its editable source is [assets/icon.svg](assets/icon.svg).

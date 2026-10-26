@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title description">
+  <title id="title">neo-screenshots</title>
+  <desc id="description">Стопка снимков с бирюзовым пейзажем и золотистой лупой на тёмном фоне.</desc>
+  <defs>
+    <clipPath id="photo">
+      <rect x="198" y="316" width="524" height="350" rx="28"/>
+    </clipPath>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="#102131"/>
+  <rect x="12" y="12" width="1000" height="1000" rx="212" fill="none" stroke="#253b4b" stroke-width="24"/>
+  <rect x="268" y="188" width="548" height="386" rx="56" transform="rotate(-8 542 381)" fill="#2b6570" stroke="#57918f" stroke-width="16"/>
+  <rect x="160" y="278" width="600" height="428" rx="60" fill="#081722" opacity=".35" transform="translate(0 18)"/>
+  <rect x="160" y="278" width="600" height="428" rx="60" fill="#e7f1eb"/>
+  <g clip-path="url(#photo)">
+    <rect x="198" y="316" width="524" height="350" fill="#184756"/>
+    <circle cx="594" cy="396" r="38" fill="#f2cc86"/>
+    <path d="M178 666 352 448 508 618 590 518 742 666Z" fill="#388e91"/>
+    <path d="M176 676 426 498 622 676Z" fill="#7bd4ba"/>
+  </g>
+  <path d="m798 794 86 88" fill="none" stroke="#102131" stroke-width="100" stroke-linecap="round"/>
+  <path d="m798 794 86 88" fill="none" stroke="#f2cc86" stroke-width="66" stroke-linecap="round"/>
+  <circle cx="704" cy="700" r="154" fill="#102131"/>
+  <circle cx="704" cy="700" r="114" fill="#184756" stroke="#f2cc86" stroke-width="40"/>
+  <path d="M654 687a52 52 0 0 1 37-37" fill="none" stroke="#7bd4ba" stroke-width="16" stroke-linecap="round"/>
+</svg>

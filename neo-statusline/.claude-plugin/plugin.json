@@ -2,6 +2,9 @@
   "name": "neo-statusline",
   "version": "0.1.0",
   "description": "One-line status bar under the prompt: model, effort, git, context, prompt cache, rate limits, cost.",
+  "author": { "name": "Hoxiee" },
+  "license": "MIT",
+  "icon": "./.claude-plugin/icon.png",
   "userConfig": {
     "cacheTtl": {
       "type": "string",

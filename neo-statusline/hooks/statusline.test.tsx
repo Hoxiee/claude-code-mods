@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import type { TestBody } from 'claude-code/testing'
 
 const BAND = {
   plugin: 'neo-statusline',
@@ -12,7 +13,7 @@ test('the band shows model, context, limits and cost', async ($, on) => {
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('store.get', () => ({ value: undefined }))
   on('store.set', () => ({ value: undefined }))
-  on('clock.every', () => ({ value: {} }))
+  on('clock.every', () => ({ value: undefined }))
   on('ui.invalidate', () => ({ value: undefined }))
   on('session.cwd', () => ({ value: '/home/me/proj' }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
@@ -58,14 +59,14 @@ const usage = (fresh: number, read: number, write: number): Usage => ({
 })
 
 // A session the band can run in: one shared store (as the real one is), an id and a clock.
-function world(on: Parameters<Parameters<typeof test>[1]>[1], opts: { store?: Map<string, unknown>; sid?: string; now?: number } = {}) {
+function world(on: Parameters<TestBody>[1], opts: { store?: Map<string, unknown>; sid?: string; now?: number } = {}) {
   const store = opts.store ?? new Map<string, unknown>()
   const state = { sid: opts.sid ?? 's1', now: opts.now ?? 60_000, next: null as Usage | null }
 
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('store.get', (_, e) => ({ value: store.get(e.key) }))
   on('store.set', (_, e) => (store.set(e.key, JSON.parse(JSON.stringify(e.value))), { value: undefined }))
-  on('clock.every', () => ({ value: {} }))
+  on('clock.every', () => ({ value: undefined }))
   on('ui.invalidate', () => ({ value: undefined }))
   on('session.id', () => ({ value: state.sid }))
   on('session.cwd', () => ({ value: '/p' }))
@@ -82,13 +83,13 @@ function world(on: Parameters<Parameters<typeof test>[1]>[1], opts: { store?: Ma
 }
 
 // Runs one request of the main thread (or a subagent's) that the API answered with `u`.
-async function step($: Parameters<Parameters<typeof test>[1]>[0], w: { next: Usage | null }, u: Usage, agentId?: string) {
+async function step($: Parameters<TestBody>[0], w: { next: Usage | null }, u: Usage, agentId?: string) {
   w.next = u
   const stream = $.turn.step({ turnId: 't', index: 0, model: 'm', messageCount: 2, agentId })
   for (;;) if ((await stream.next()).done) return
 }
 
-const mount = ($: Parameters<Parameters<typeof test>[1]>[0]) => $.ui.mount({ ...BAND, props: { ...BAND.props, hint: '' } })
+const mount = ($: Parameters<TestBody>[0]) => $.ui.mount({ ...BAND, props: { ...BAND.props, hint: '' } })
 
 test('the band shows the last request\'s cache ratio, the session total and the countdown', async ($, on) => {
   const w = world(on)
@@ -155,7 +156,7 @@ test('another session, or the same one after /clear, does not inherit the cache'
 test('the shift+tab reminder is cut from the hint', async ($, on) => {
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('store.get', () => ({ value: undefined }))
-  on('clock.every', () => ({ value: {} }))
+  on('clock.every', () => ({ value: undefined }))
   on('ui.invalidate', () => ({ value: undefined }))
   on('session.cwd', () => ({ value: '/p' }))
   on('session.model', () => ({ value: 'm' }))
@@ -173,7 +174,7 @@ test('the shift+tab reminder is cut from the hint', async ($, on) => {
 test('the 5h and 7d limits are hidden when showLimits is off', { options: { showLimits: false } }, async ($, on) => {
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('store.get', () => ({ value: undefined }))
-  on('clock.every', () => ({ value: {} }))
+  on('clock.every', () => ({ value: undefined }))
   on('ui.invalidate', () => ({ value: undefined }))
   on('session.cwd', () => ({ value: '/p' }))
   on('session.model', () => ({ value: 'm' }))

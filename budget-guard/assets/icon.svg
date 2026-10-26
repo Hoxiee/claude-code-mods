@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title description">
+  <title id="title">budget-guard</title>
+  <desc id="description">Щит с золотистыми часами: защита бюджета и времени жизни кэша.</desc>
+  <rect width="1024" height="1024" rx="224" fill="#102131"/>
+  <rect x="12" y="12" width="1000" height="1000" rx="212" fill="none" stroke="#253b4b" stroke-width="24"/>
+  <path d="M512 182c-74 52-169 89-274 112v240c0 150 108 248 274 330 166-82 274-180 274-330V294c-105-23-200-60-274-112Z" fill="#081722" opacity=".35" transform="translate(0 18)"/>
+  <path d="M512 164c-74 52-169 89-274 112v240c0 150 108 248 274 330 166-82 274-180 274-330V276c-105-23-200-60-274-112Z" fill="#2b6570" stroke="#e7f1eb" stroke-width="36" stroke-linejoin="round"/>
+  <path d="M512 238c-57 35-126 64-200 86v191c0 105 72 183 200 253 128-70 200-148 200-253V324c-74-22-143-51-200-86Z" fill="#184756"/>
+  <circle cx="512" cy="466" r="142" fill="#102131" stroke="#f2cc86" stroke-width="36"/>
+  <path d="M512 374v92l66 44" fill="none" stroke="#f2cc86" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="512" cy="466" r="19" fill="#f2cc86"/>
+  <path d="m461 678 35 33 69-66" fill="none" stroke="#7bd4ba" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,5 +1,7 @@
 # neo-statusline
 
+<img src=".claude-plugin/icon.png" alt="" width="80" height="80" align="right">
+
 [English](README.md) | Русский
 
 Статусбар Claude Code в одну строку под промптом:
@@ -28,6 +30,15 @@
 движка остаётся ниже, но без напоминаний `(shift+tab to cycle)` и `N agents`.
 
 ## Установка
+
+В строке ввода Claude Code:
+
+```text
+/plugin install neo-statusline --marketplace Hoxiee/claude-code-mods
+```
+
+Подтвердите добавление marketplace клавишей `y`, затем выберите область установки
+и настройки.
 
 Мод рисует компонент `PromptHint`, поэтому нужен терминальный Claude Code с поддержкой
 модов. Добавьте папку мода в `~/.claude/settings.json`:
@@ -77,3 +88,8 @@ ccache 82045d4f   # префикс id сессии
 claude plugin validate .
 claude plugin test .
 ```
+
+## Лицензия
+
+[MIT](LICENSE) © 2026 Hoxiee. Иконка распространяется под той же лицензией;
+редактируемый исходник — [assets/icon.svg](assets/icon.svg).

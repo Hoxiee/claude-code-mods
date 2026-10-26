@@ -1,11 +1,19 @@
 {
   "name": "claude-code-mods",
   "owner": { "name": "Hoxiee" },
+  "metadata": {
+    "description": "Claude Code mods for status lines, screenshot history, prompt caching, and budget awareness."
+  },
   "plugins": [
     {
       "name": "neo-statusline",
       "source": "./neo-statusline",
       "description": "One-line status bar under the prompt: model, effort, git, context, prompt cache, rate limits, cost."
+    },
+    {
+      "name": "budget-guard",
+      "source": "./budget-guard",
+      "description": "Stretches a Claude subscription: keeps the main prompt cache warm while idle, warns on 5h/7d limits and an approaching compaction, guards prompts sent into a cold cache."
     },
     {
       "name": "neo-screenshots",
