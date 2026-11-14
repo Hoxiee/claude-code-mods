@@ -1,30 +1,31 @@
 {
   "name": "budget-guard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Stretches a Claude subscription: keeps the main prompt cache warm while idle, warns on 5h/7d limits and an approaching compaction, guards prompts sent into a cold cache.",
   "author": { "name": "Hoxiee" },
   "license": "MIT",
   "icon": "./.claude-plugin/icon.png",
+  "types": "./types/index.d.ts",
   "userConfig": {
     "keepalive": {
       "type": "boolean",
       "title": "Keep the prompt cache warm",
-      "description": "While the main thread is idle, re-read its cached prefix through a fork shortly before the 5-minute cache expires.",
+      "description": "While idle, re-read the main thread's cached prefix through a fork 4:20-4:30 after the last request starts.",
       "default": true
     },
     "keepaliveMinutes": {
       "type": "string",
       "title": "Keepalive horizon (minutes)",
-      "description": "How long after the last real request to keep pinging. A ping costs ~1/25 of a cache rebuild on Opus.",
+      "description": "How long after the last real request to keep pinging. Each ping consumes usage; savings depend on the provider's cache pricing.",
       "default": "30",
       "options": ["10", "20", "30", "45", "60", "90"]
     },
     "keepaliveMinTokens": {
       "type": "string",
       "title": "Keepalive minimum context (tokens)",
-      "description": "Below this context size a rebuild is cheap and no ping is sent.",
-      "default": "30000",
-      "options": ["15000", "30000", "60000", "100000"]
+      "description": "Skip pings below this context size. 0 keeps all context sizes eligible; actual cache reuse is checked after each ping.",
+      "default": "0",
+      "options": ["0", "15000", "30000", "60000", "100000"]
     },
     "coldCacheGuard": {
       "type": "string",

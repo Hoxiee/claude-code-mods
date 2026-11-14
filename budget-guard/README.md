@@ -9,6 +9,7 @@ thread's requests, subscription limits, and context size. Its commands and notif
 are currently in Russian.
 
 - Keep a five-minute prompt cache warm during a short idle stretch.
+- Disable keepalive for just the current session with `/budget off`.
 - Warn at configurable 5h/7d usage and context thresholds.
 - Ask for a second `Enter` before sending a large prompt into a cold cache.
 - Add a short budget reminder to submitted prompts when usage is high.
@@ -45,19 +46,25 @@ claude --plugin-dir /path/to/neocc-mods/budget-guard
 | Command | Action |
 | --- | --- |
 | `/budget` | Show limits, context, cache age, and keepalive counters |
-| `/budget on` | Enable keepalive for the currently loaded mod |
-| `/budget off` | Disable keepalive; warnings and the cold-cache guard stay active |
+| `/budget on` | Enable keepalive in the current session |
+| `/budget off` | Disable keepalive in the current session; warnings and the cold-cache guard stay active |
 
-The command toggle is not a saved preference. Use `keepalive` in the mod's options
-for a setting that survives reloads.
+Finished a task but keeping the CLI open to read? Run `/budget off`. The keepalive
+timer stops; no new pings or retries start. An already-running ping may finish.
+Run `/budget on` to resume. If the cache has already expired, the mod waits for a
+real request instead of paying to warm the cold prefix again.
+
+The toggle lives in the current session's state and survives a mod hot reload.
+Ordinary requests do not turn keepalive back on. Other sessions are unaffected;
+a new session uses the `keepalive` option, which the command does not change.
 
 ## Options
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `keepalive` | `true` | Allow background keepalive requests |
+| `keepalive` | `true` | Enable background keepalive requests by default in new sessions |
 | `keepaliveMinutes` | `"30"` | Idle horizon after the last real request |
-| `keepaliveMinTokens` | `"30000"` | Minimum context size for keepalive |
+| `keepaliveMinTokens` | `"0"` | Minimum context size for keepalive; `0` disables the threshold |
 | `coldCacheGuard` | `"confirm"` | `confirm`, `warn`, or `off` |
 | `coldCacheMinTokens` | `"60000"` | Minimum context size for the cold-cache guard |
 | `limitThresholds` | `"50,75,90,95"` | 5h/7d usage thresholds for warnings |
@@ -77,10 +84,29 @@ merging this into `~/.claude/settings.json`:
 
 ## Behavior and limits
 
-- The timer checks every 15 seconds. A ping is allowed between 235 and 285 seconds
-  after the last request, before the assumed five-minute cache expiry.
-- Keepalive skips in-flight main requests, small contexts, idle stretches beyond
-  the configured horizon, and subscription usage at or above 98%.
+- The timer checks every 10 seconds. For a `5m` TTL, an automatic ping is sent
+  **4:20–4:30 after the last request starts**, not after its response ends.
+  Generation time, including the ping's own response, already consumes the TTL.
+  If the safe window is missed (age above 285 seconds), the mod waits for a new
+  main request instead of paying for a late warmup.
+- There is no context-size threshold by default (`keepaliveMinTokens: "0"`). Set
+  one explicitly if needed; a previously saved `"30000"` remains in effect.
+- Keepalive skips in-flight main requests, contexts below the configured threshold,
+  idle stretches beyond the configured horizon, and subscription usage at or above
+  98%. The default horizon is 30 minutes after the last real request, not a ping.
+- `/budget` shows the countdown, skip reason, last failure, and the pings' cache
+  reads, writes, and output. Transient API errors that reported zero usage may be
+  retried every 10 seconds, at most three attempts and only before the safe deadline.
+  Other failures or responses without a majority cache hit pause pings until the
+  next successful main request and raise a toast. The old cache timestamp is preserved,
+  so the cold-cache guard keeps working.
+- `neo-statusline` 0.2.1 and later observe confirmed fork cache hits too: their countdown
+  refreshes and shows `↻`. A request merely being sent is not proof of a warm cache.
+  Update and reload both installed mods; edits to a marketplace source directory alone
+  do not replace the installed copies.
+- A ping uses the same prefix and model settings through `$.model.fork` and asks
+  for `ok`. The fork API does not expose `maxTokens`, so zero output is not
+  guaranteed; both the short response and cache read consume usage.
 - In `confirm` mode, a held prompt returns to the input. Submit the same text again
   within two minutes to proceed. Slash commands and programmatic/meta prompts bypass
   this check; changing the text requires a new confirmation.
@@ -88,7 +114,8 @@ merging this into `~/.claude/settings.json`:
   Thresholds of 90% and above also request a system notification.
 - Context warnings suggest `/compact` or `/clear`; the mod does not run either.
 - Cache age and the `/budget` counters are local estimates, not provider guarantees.
-  A hot reload resets in-memory tracking. The mod does not inspect old transcripts.
+  A hot reload resets cache age and counters but preserves the session keepalive
+  toggle. The mod does not inspect old transcripts.
 - The high-usage model note is appended to the current prompt's context, not to the
   earlier conversation. No note is added when `budgetNudgeAt` is `off`.
 

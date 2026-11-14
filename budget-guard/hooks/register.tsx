@@ -1,23 +1,33 @@
 import type { EngineInterface, ModelUsage, Register, SessionRateLimit } from 'claude-code'
+import type { KeepaliveMode, KeepaliveStatus } from '../types'
 
 type $ = EngineInterface
 
-const TICK_MS = 15_000
+const TICK_MS = 10_000
+const MAX_PING_ATTEMPTS = 3
 const CACHE_TTL_MS = 300_000
-// A ping later than this risks landing after the entry lapsed and paying the rebuild itself.
+// A late ping can pay to rebuild an already expired prefix.
 const LAST_SAFE_PING_MS = 285_000
-const IDLE_BEFORE_PING_MS = 235_000
+const IDLE_BEFORE_PING_MS = 260_000
 const CONFIRM_WINDOW_MS = 120_000
 const WINDOW_RECHECK_MS = 600_000
 const PING = 'Cache keepalive ping from a plugin. Use no tools and do not think about the task. Reply with exactly: ok'
 const LIMIT_LABEL: Record<string, string> = { five_hour: '5h', seven_day: '7d' }
+const KEEPALIVE = { plugin: 'budget-guard', key: 'keepaliveMode' } as const
+const STATUS = { plugin: 'budget-guard', key: 'keepaliveStatus' } as const
 
 const S = {
   lastReq: 0,
   lastReal: 0,
+  requestId: 0,
   inFlight: 0,
   isPinging: false,
   isOff: false,
+  lastTick: 0,
+  published: '' as KeepaliveStatus | '',
+  pingIssue: '',
+  pingFailures: 0,
+  retryAt: 0,
   ctx: 0,
   window: 0,
   windowAt: 0,
@@ -25,6 +35,7 @@ const S = {
   warned: new Set<string>(),
   pings: 0,
   pingRead: 0,
+  pingWrite: 0,
   pingOut: 0,
   stretchPings: 0,
   rescued: 0,
@@ -45,6 +56,11 @@ const k = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n))
 const span = (ms: number) => {
   const m = Math.max(0, Math.round(ms / 60_000))
   return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m` : `${m}m`
+}
+
+const countdown = (ms: number) => {
+  const seconds = Math.max(0, Math.ceil(ms / 1000))
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
 const resetIn = (r: SessionRateLimit, now: number) => (r.resetsAt ? span(Date.parse(r.resetsAt) - now) : '?')
@@ -77,41 +93,115 @@ async function remember($: $, key: string): Promise<boolean> {
   return true
 }
 
-function onRequest(usage: ModelUsage | null | undefined, now: number) {
-  const idle = now - S.lastReal
-  if (usage && S.stretchPings > 0 && S.lastReal > 0 && idle > CACHE_TTL_MS && usage.cache_read_input_tokens > usage.cache_creation_input_tokens) {
+function onRequest(usage: ModelUsage | null | undefined, startedAt: number) {
+  if (!usage) return
+  const idle = startedAt - S.lastReal
+  if (S.stretchPings > 0 && S.lastReal > 0 && idle > CACHE_TTL_MS && usage.cache_read_input_tokens > usage.cache_creation_input_tokens) {
     S.rescued += 1
     S.rescuedTokens += usage.cache_read_input_tokens
   }
-  S.lastReq = now
-  S.lastReal = now
+  // Generation consumes the TTL: finishing a response does not start another five minutes.
+  S.lastReq = startedAt
+  S.lastReal = startedAt
   S.stretchPings = 0
+  S.pingIssue = ''
+  S.pingFailures = 0
+  S.retryAt = 0
+}
+
+function keepaliveWait(now: number, horizonMs: number, minTokens: number): string | null {
+  if (S.isOff) return 'выключен'
+  if (S.isPinging) return 'пинг выполняется'
+  if (S.inFlight > 0) return 'выполняется запрос основной ветки'
+  if (S.lastReq === 0) return 'ждёт первый успешный запрос основной ветки'
+  if (S.pingIssue && S.retryAt === 0) return 'приостановлен до следующего запроса'
+  if (now - S.lastReal >= horizonMs) return 'горизонт простоя исчерпан; ждёт новый запрос'
+  if (S.ctx < minTokens) return `контекст ${k(S.ctx)} ниже порога ${k(minTokens)}`
+  if ((worst()?.percentUsed ?? 0) >= 98) return 'расход подписки от 98%'
+  const idle = now - S.lastReq
+  if (idle > LAST_SAFE_PING_MS) return 'безопасное окно пинга пропущено; ждёт новый запрос'
+  if (now < S.retryAt) return `повторная попытка через ${countdown(S.retryAt - now)}`
+  if (idle < IDLE_BEFORE_PING_MS) return `следующий пинг через ${countdown(IDLE_BEFORE_PING_MS - idle)}`
+  return null
+}
+
+function liveStatus(now: number, horizonMs: number, minTokens: number): KeepaliveStatus {
+  if (S.isOff) return 'off'
+  if (S.isPinging) return 'pinging'
+  if (S.pingIssue && S.retryAt === 0) return 'paused'
+  const wait = keepaliveWait(now, horizonMs, minTokens)
+  return wait === null || wait.startsWith('следующий пинг') || wait.startsWith('повторная') || wait.startsWith('выполняется запрос')
+    ? 'armed'
+    : 'idle'
+}
+
+// The statusline reads this value; write it only when it changes.
+async function publish($: $, horizonMs: number, minTokens: number) {
+  const next = liveStatus(await $.clock.now(), horizonMs, minTokens)
+  if (next === S.published) return
+  S.published = next
+  await $.state.set(STATUS, next).catch(() => {})
 }
 
 async function tick($: $, horizonMs: number, minTokens: number) {
-  if (S.isOff || S.isPinging || S.inFlight > 0 || S.lastReq === 0) return
-  const now = await $.clock.now()
-  const idle = now - S.lastReq
-  if (idle < IDLE_BEFORE_PING_MS || idle > LAST_SAFE_PING_MS) return
-  if (now - S.lastReal > horizonMs || S.ctx < minTokens) return
-  if ((worst()?.percentUsed ?? 0) >= 98) return
+  const startedAt = await $.clock.now()
+  S.lastTick = startedAt
+  await publish($, horizonMs, minTokens)
+  if (keepaliveWait(startedAt, horizonMs, minTokens) !== null) return
+  if (keepaliveWait(startedAt, horizonMs, minTokens) !== null) return
 
+  const requestId = S.requestId
+  let retryable = false
   S.isPinging = true
+  S.retryAt = 0
+  S.pings += 1
+  await publish($, horizonMs, minTokens)
   try {
     const r = await $.model.fork({ prompt: PING })
-    if (!('usage' in r) || !r.usage) return
-    S.pings += 1
-    S.stretchPings += 1
-    S.pingRead += r.usage.cache_read_input_tokens
-    S.pingOut += r.usage.output_tokens
-    if (r.usage.cache_read_input_tokens > 0) S.lastReq = await $.clock.now()
-    else S.lastReq = 0
+    const usage = 'usage' in r ? r.usage : undefined
+    if (usage) {
+      S.pingRead += usage.cache_read_input_tokens
+      S.pingWrite += usage.cache_creation_input_tokens
+      S.pingOut += usage.output_tokens
+    }
+    // A new main-thread request may have started while the fork was running.
+    if (requestId !== S.requestId) return
+    if (usage && usage.cache_read_input_tokens > usage.cache_creation_input_tokens + usage.input_tokens) {
+      S.lastReq = startedAt
+      S.stretchPings += 1
+      S.pingIssue = ''
+      S.pingFailures = 0
+      S.retryAt = 0
+    } else if (!r.isAnswered) {
+      S.pingIssue = r.reason === 'api-error'
+        ? `api-error: HTTP ${r.status ?? '?'} (${r.error})`
+        : r.reason
+      retryable = r.reason === 'api-error' &&
+        (r.status === null || r.status === 408 || r.status === 429 || r.status >= 500) &&
+        r.usage.input_tokens + r.usage.output_tokens +
+          r.usage.cache_read_input_tokens + r.usage.cache_creation_input_tokens === 0
+    } else {
+      S.pingIssue = 'префикс не попал в кэш; дальнейший прогрев может оплачивать повторную запись'
+    }
+  } catch {
+    if (requestId === S.requestId) S.pingIssue = 'ошибка выполнения model.fork'
   } finally {
     S.isPinging = false
+    if (requestId === S.requestId && S.pingIssue) {
+      S.pingFailures += 1
+      const retryAt = await $.clock.now() + TICK_MS
+      if (requestId !== S.requestId) return
+      S.retryAt = retryable && S.pingFailures < MAX_PING_ATTEMPTS &&
+        retryAt <= S.lastReq + LAST_SAFE_PING_MS ? retryAt : 0
+      if (S.retryAt === 0 && !S.isOff) {
+        $.ui.toast(`Автопрогрев приостановлен: ${S.pingIssue}. Подробности: /budget.`, { timeoutMs: 10_000 })
+      }
+    }
+    await publish($, horizonMs, minTokens)
   }
 }
 
-function status(now: number, horizonMs: number) {
+function status(now: number, horizonMs: number, minTokens: number) {
   const lines: string[] = []
   for (const r of S.limits) {
     lines.push(`${LIMIT_LABEL[r.kind] ?? r.kind}: ${r.percentUsed}% (сброс через ${resetIn(r, now)})`)
@@ -121,20 +211,43 @@ function status(now: number, horizonMs: number) {
   const idle = S.lastReq ? now - S.lastReq : 0
   lines.push(
     S.lastReq === 0
-      ? 'кэш: запросов ещё не было'
-      : `кэш: ${idle < CACHE_TTL_MS ? `тёплый, остынет через ${span(CACHE_TTL_MS - idle)}` : `холодный (${span(idle)} простоя)`}`,
+      ? 'кэш: возраст неизвестен, успешных запросов ещё не было'
+      : `кэш (оценка): ${idle < CACHE_TTL_MS ? `тёплый, остынет через ${countdown(CACHE_TTL_MS - idle)}` : `холодный (${span(idle)} простоя)`}`,
   )
   lines.push(
     `keepalive: ${S.isOff ? 'выключен' : `включён, горизонт ${span(horizonMs)}`}; пингов ${S.pings}` +
-      ` (прочитано ${k(S.pingRead)}, вывод ${k(S.pingOut)}); спасено ходов ${S.rescued} (${k(S.rescuedTokens)} не переписано)`,
+      ` (прочитано ${k(S.pingRead)}, записано ${k(S.pingWrite)}, вывод ${k(S.pingOut)}); спасено ходов ${S.rescued} (${k(S.rescuedTokens)} не переписано)`,
+    `автопинг: ${keepaliveWait(now, horizonMs, minTokens) ?? 'ожидает ближайший тик (до 10 с)'}`,
   )
+  if (S.isOff && S.isPinging) lines.push('уже начатый пинг ещё выполняется; новые пинги отключены')
+  if (S.pingIssue) lines.push(`последний сбой: ${S.pingIssue}`)
+  lines.push(`прогрев в текущей сессии: ${S.isOff ? '/budget on — включить' : '/budget off — выключить'}`)
   return lines.join('\n')
+}
+
+let timer: ReturnType<$['clock']['every']> | undefined
+
+function syncTimer($: $, horizonMs: number, minTokens: number, now = 0) {
+  // A dead interval (refused period) leaves the handle behind: restart one that stopped ticking.
+  if (timer && now > 0 && S.lastTick > 0 && now - S.lastTick > TICK_MS * 4) {
+    timer.cancel()
+    timer = undefined
+  }
+  if (S.isOff) {
+    timer?.cancel()
+    timer = undefined
+  } else if (!timer) {
+    S.lastTick = now
+    timer = $.clock.every(TICK_MS, () => void tick($, horizonMs, minTokens).catch(() => {
+      S.pingIssue = 'ошибка таймера keepalive'
+    }))
+  }
 }
 
 export const register: Register = (on, options) => {
   const keepalive = options.keepalive !== false
   const horizonMs = Number(options.keepaliveMinutes ?? 30) * 60_000
-  const minTokens = Number(options.keepaliveMinTokens ?? 30000)
+  const minTokens = Number(options.keepaliveMinTokens ?? 0)
   const guard = String(options.coldCacheGuard ?? 'confirm')
   const guardMin = Number(options.coldCacheMinTokens ?? 60000)
   const limitSteps = nums(options.limitThresholds, [50, 75, 90, 95])
@@ -143,32 +256,45 @@ export const register: Register = (on, options) => {
   S.isOff = !keepalive
 
   on('session.start', async ($, e, next) => {
+    const { value } = await $.state.get(KEEPALIVE)
+    S.isOff = value === undefined ? !keepalive : value === 'off'
     const res = await next(e)
     await $.command.register({
       name: 'budget',
-      description: 'Лимиты, контекст, кэш и keepalive; /budget on|off переключает keepalive',
+      description: 'Лимиты, контекст, кэш и keepalive; /budget on|off переключает прогрев в текущей сессии',
     })
-    $.clock.every(TICK_MS, () => void tick($, horizonMs, minTokens).catch(() => {}))
+    syncTimer($, horizonMs, minTokens)
+    void publish($, horizonMs, minTokens)
     void refreshWindow($, await $.clock.now())
     return res
   })
 
   on('session.end', ($, e, next) => {
+    timer?.cancel()
+    timer = undefined
+    S.requestId += 1
     S.lastReq = 0
     S.lastReal = 0
     S.window = 0
+    S.pingIssue = ''
+    S.published = ''
     return next(e)
   })
 
   on('turn.step', async function* ($, e, next) {
-    if (e.agentId !== undefined || S.isPinging) return yield* next(e)
+    if (e.agentId !== undefined) return yield* next(e)
     S.inFlight += 1
+    const requestId = ++S.requestId
     try {
+      const startedAt = await $.clock.now()
+      // A /clear or a resume ends the session without a new `session.start`: re-arm the timer here.
+      syncTimer($, horizonMs, minTokens, startedAt)
       const res = yield* next(e)
-      onRequest(res.usage, await $.clock.now())
+      if (requestId === S.requestId) onRequest(res.usage, startedAt)
       return res
     } finally {
       S.inFlight -= 1
+      void publish($, horizonMs, minTokens)
     }
   })
 
@@ -236,9 +362,15 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'budget' }, async ($, e) => {
     const arg = e.args.trim()
-    if (arg === 'on' || arg === 'off') S.isOff = arg === 'off'
+    if (arg === 'on' || arg === 'off') {
+      const mode: KeepaliveMode = arg
+      S.isOff = mode === 'off'
+      await $.state.set(KEEPALIVE, mode)
+    }
     const now = await $.clock.now()
+    syncTimer($, horizonMs, minTokens, now)
+    await publish($, horizonMs, minTokens)
     await refreshWindow($, now)
-    return { text: status(now, horizonMs) }
+    return { text: status(now, horizonMs, minTokens) }
   })
 }
