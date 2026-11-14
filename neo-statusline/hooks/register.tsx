@@ -57,7 +57,7 @@ type Git = {
 type Ttl = '5m' | '1h'
 // One main-thread request: `fresh` is the uncached part of the prompt; `broke` marks a
 // request that lost most of what the previous one had cached.
-type Cache = { ratio: number; read: number; write: number; fresh: number; at: number; broke: boolean }
+type Cache = { ratio: number; read: number; write: number; fresh: number; at: number; broke: boolean; warmedAt?: number }
 type Total = { read: number; write: number; fresh: number }
 type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
 // What one subagent has done so far: its own model, cache and token sums. `context` is the
@@ -87,6 +87,15 @@ const C = {
   yellow: '#f9e2af',
   orange: '#fab387',
   red: '#f38ba8',
+}
+
+// budget-guard's keepalive states as the bar shows them.
+const KEEPALIVE_VIEW: Record<string, { label: string; color: string }> = {
+  armed: { label: 'keepalive', color: C.green },
+  pinging: { label: 'pinging', color: C.orange },
+  paused: { label: 'paused', color: C.red },
+  idle: { label: 'waiting', color: C.label },
+  off: { label: 'off', color: C.label },
 }
 
 const usageColor = (pct: number) =>
@@ -226,6 +235,8 @@ const S: {
   isBusy: boolean
 } = { git: null, cwd: '', model: '', effort: '', sid: null, cache: null, total: { read: 0, write: 0, fresh: 0 }, ttl: null, agents: {}, view: undefined, isBusy: false }
 
+let mainRequestId = 0
+const cacheTime = (cache: Cache) => Math.max(cache.at, cache.warmedAt ?? 0)
 const sessionId = ($: Api) => $.session.id().catch(() => '')
 
 // Points the cache numbers at the current session, loading what the store kept for it.
@@ -269,14 +280,13 @@ async function load($: Api) {
 }
 
 // One main-thread request landed: its own numbers are the cache's state now.
-async function record($: Api, u: Usage, forced: Ttl | null) {
+async function record($: Api, u: Usage, forced: Ttl | null, startedAt: number) {
   await bind($)
 
-  const now = await $.clock.now()
   const prev = S.cache
-  const next = measure(u, prev, now)
+  const next = measure(u, prev, startedAt)
   const total = u.input_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens
-  const gap = prev ? now - prev.at : 0
+  const gap = prev ? startedAt - cacheTime(prev) : 0
 
   // After a pause past 5m a warm read proves the 1h cache; a cold miss on
   // a big prompt (inside the hour) proves 5m.
@@ -292,12 +302,11 @@ async function record($: Api, u: Usage, forced: Ttl | null) {
 
 // One subagent request landed. A subagent has a cache of its own, so it never feeds the
 // main thread's numbers or the TTL guess.
-async function recordAgent($: Api, id: string, model: string, effort: string, u: Usage) {
+async function recordAgent($: Api, id: string, model: string, effort: string, u: Usage, startedAt: number) {
   await bind($)
 
-  const now = await $.clock.now()
   const prev = S.agents[id]
-  const cache = measure(u, prev?.cache ?? null, now)
+  const cache = measure(u, prev?.cache ?? null, startedAt)
 
   S.agents[id] = {
     model: model || prev?.model || '',
@@ -307,7 +316,7 @@ async function recordAgent($: Api, id: string, model: string, effort: string, u:
     out: (prev?.out ?? 0) + u.output_tokens,
     requests: (prev?.requests ?? 0) + 1,
     context: cache.fresh + cache.write + cache.read,
-    since: prev?.since ?? now,
+    since: prev?.since ?? startedAt,
   }
   await save($)
   $.ui.invalidate('ui.render')
@@ -347,6 +356,8 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.step', async function* ($, e, next) {
+    const requestId = e.agentId === undefined ? ++mainRequestId : mainRequestId
+    const startedAt = await $.clock.now()
     const effort = effortOf(e.effort)
 
     if (e.agentId === undefined) {
@@ -362,10 +373,33 @@ export const register: Register = (on, options) => {
     const res = yield* next(e)
 
     if (res.usage) {
-      if (e.agentId === undefined) await record($, res.usage, forced)
-      else await recordAgent($, e.agentId, res.usage.model || e.model, effort, res.usage)
+      if (e.agentId !== undefined) await recordAgent($, e.agentId, res.usage.model || e.model, effort, res.usage, startedAt)
+      else if (requestId === mainRequestId) await record($, res.usage, forced, startedAt)
     }
 
+    return res
+  })
+
+  on('model.fork', async ($, e, next) => {
+    await bind($)
+    const sid = S.sid
+    const requestId = mainRequestId
+    const startedAt = await $.clock.now()
+    const res = await next(e)
+    if (!('value' in res) || !res.value || !('usage' in res.value)) return res
+
+    await bind($)
+    if (sid !== S.sid) return res
+    const usage = res.value.usage
+    S.total = sumOf(S.total, usage)
+    // Sending alone does not refresh the TTL: the fork must confirm a cache hit.
+    // An old fork must not refresh a newer main-thread request's cache.
+    if (requestId === mainRequestId && S.cache && startedAt >= cacheTime(S.cache) &&
+        usage.cache_read_input_tokens > usage.cache_creation_input_tokens + usage.input_tokens) {
+      S.cache = { ...S.cache, warmedAt: startedAt }
+    }
+    await save($)
+    $.ui.invalidate('ui.render')
     return res
   })
 
@@ -453,7 +487,8 @@ export const register: Register = (on, options) => {
 
       const sum = t.read + t.write + t.fresh
       const sumRatio = sum > 0 ? Math.round((t.read / sum) * 100) : 0
-      const left = TTL_MS[ttl ?? '5m'] - (now - c.at)
+      const expiresAt = cacheTime(c) + TTL_MS[ttl ?? '5m']
+      const left = expiresAt - now
       const frac = left / TTL_MS[ttl ?? '5m']
       const timeColor = left <= 0 ? C.red : frac < 0.2 ? C.orange : frac < 0.5 ? C.yellow : C.sky
 
@@ -471,10 +506,11 @@ export const register: Register = (on, options) => {
           ) : null}
           {level >= 1 && c.write >= 4000 ? <Text color={C.orange}> +{tokens(c.write)}</Text> : null}
           <Text color={C.label}> {ttl ?? '5m?'}</Text>
+          {c.warmedAt !== undefined ? <Text color={C.teal}> ↻</Text> : null}
           {left > 0 ? (
             <Text color={timeColor} bold>
               {' '}{countdown(left)}
-              {level >= 1 ? <Text color={C.label} bold={false}> → {clock(c.at + TTL_MS[ttl ?? '5m'])}</Text> : null}
+              {level >= 1 ? <Text color={C.label} bold={false}> → {clock(expiresAt)}</Text> : null}
             </Text>
           ) : (
             <Text color={C.red} bold>
@@ -638,6 +674,20 @@ export const register: Register = (on, options) => {
       if (!context) items.push(<Text color={C.label}>ctx —</Text>)
 
       items.push(cacheItem(cache, S.total))
+
+      // budget-guard's cache keepalive; absent while that mod is not installed.
+      const keepalive = (await $.state.get({ plugin: 'budget-guard', key: 'keepaliveStatus' }).catch(() => undefined))?.value
+      const live = keepalive && KEEPALIVE_VIEW[keepalive]
+      if (live) {
+        items.push(
+          <Text>
+            <Text color={live.color} bold>
+              ♨
+            </Text>
+            {level >= 1 ? <Text color={live.color}> {live.label}</Text> : null}
+          </Text>,
+        )
+      }
 
       // Subagents: running over all the session has started. The engine's own "N agents"
       // reminder is cut from the hint below, so this carries it.

@@ -94,6 +94,14 @@ requests are not counted in it: they have a cache of their own, shown when you v
 A lower ratio right after a long tool result is normal (`+Nk` is the new text being
 cached); `miss` is the real failure, and means the previous prefix was not read back.
 
+The countdown starts when the request starts, not when generation finishes. Confirmed
+majority cache hits from `$.model.fork` (including `budget-guard` keepalive pings) also
+refresh it. `↻` marks this background refresh; `Σ` includes the fork's usage, while the
+last-request ratio still describes the main thread. Failed or mostly uncached forks do
+not extend the countdown. A late fork cannot overwrite a newer main request or a new
+session after `/clear`. TTL inference uses the latest confirmed refresh, so keepalive
+pings do not masquerade as evidence of a one-hour cache.
+
 For the full picture of a session, `tools/ccache` reads its transcript:
 
 ```sh
